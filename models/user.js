@@ -87,30 +87,20 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-/* ============================================================
-   ✔ FIXED PASSWORD HASHING
-   ------------------------------------------------------------
-   - NO next()
-   - NO callback style
-   - Pure async/await (Mongoose 6+ recommended style)
-   ============================================================ */
+// ✅ FIX FOR MONGOOSE 9: NO next() parameter!
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
-
+  
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-/* ============================================================
-   ✔ Compare password method
-   ============================================================ */
+// Compare password method
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-/* ============================================================
-   ✔ Generate OTP (6-digit)
-   ============================================================ */
+// Generate OTP method
 userSchema.methods.generateOTP = function () {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   this.otp = otp;
