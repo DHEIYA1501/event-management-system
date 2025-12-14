@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: "default-avatar.png"
   },
+  bio: {
+    type: String,
+    default: "",
+    maxlength: 500
+  },
 
   // Club Admin Details
   clubName: {
