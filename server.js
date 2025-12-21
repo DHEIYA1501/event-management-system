@@ -14,7 +14,7 @@ app.use(express.json());
 // Import routes
 const authRoutes = require("./routes/auth");
 const profileRoutes = require("./routes/profile");
-const eventRoutes = require("./routes/events"); // ✅ IMPORTED
+const eventRoutes = require("./routes/events");
 
 // Connect to MongoDB using config/db.js
 console.log("🔗 Attempting MongoDB connection via config/db.js...");
@@ -25,8 +25,8 @@ connectDB();
 
 // Use routes
 app.use("/api/auth", authRoutes);
-app.use("/api/profile", profileRoutes);
-app.use("/api/events", eventRoutes); // ✅ UNCOMMENTED - B2 FIXED CONTROLLER
+app.use("/api/users", profileRoutes); // ✅ CHANGED: /api/users instead of /api/profile
+app.use("/api/events", eventRoutes);
 
 // Home route with enhanced UI
 app.get("/", (req, res) => {
@@ -48,7 +48,7 @@ app.get("/", (req, res) => {
           color: #333;
         }
         .container { 
-          max-width: 1000px; 
+          max-width: 1200px; 
           margin: 0 auto; 
           background: white; 
           padding: 40px; 
@@ -103,6 +103,14 @@ app.get("/", (req, res) => {
         .delete { background: #EF4444; color: white; }
         .path { font-family: monospace; color: #1F2937; }
         .desc { color: #6B7280; margin-top: 8px; font-size: 0.9em; }
+        .day3-badge { 
+          background: #8B5CF6; 
+          color: white; 
+          padding: 3px 8px; 
+          border-radius: 4px; 
+          font-size: 0.7em; 
+          margin-left: 5px;
+        }
         .quick-links { 
           background: #EFF6FF; 
           padding: 25px; 
@@ -124,7 +132,7 @@ app.get("/", (req, res) => {
     </head>
     <body>
       <div class="container">
-        <h1>🎓 College Event Platform API</h1>
+        <h1>🎓 College Event Platform API <span style="color: #8B5CF6; font-size: 1rem;">(Day 3 Ready)</span></h1>
         
         <div class="status-badge ${mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'}">
           Database Status: ${dbStatus}
@@ -132,8 +140,9 @@ app.get("/", (req, res) => {
         
         <p>Welcome to the College Event Platform API. This backend service powers event management, user authentication, and profile management.</p>
         
-        <h2>📡 API Endpoints</h2>
+        <h2>📡 API Endpoints <small>(Day 3 endpoints marked with 🚀)</small></h2>
         <div class="endpoint-grid">
+          <!-- AUTH -->
           <div class="endpoint-card">
             <span class="method post">POST</span>
             <span class="path">/api/auth/register</span>
@@ -146,24 +155,21 @@ app.get("/", (req, res) => {
             <div class="desc">Login user and get JWT token</div>
           </div>
           
-          <div class="endpoint-card">
-            <span class="method post">POST</span>
-            <span class="path">/api/auth/verify-otp</span>
-            <div class="desc">Verify OTP for registration</div>
-          </div>
-          
+          <!-- USERS (PROFILE) -->
           <div class="endpoint-card">
             <span class="method get">GET</span>
-            <span class="path">/api/profile</span>
+            <span class="path">/api/users/profile</span>
             <div class="desc">Get user profile (JWT required)</div>
           </div>
           
           <div class="endpoint-card">
-            <span class="method post">POST</span>
-            <span class="path">/api/profile/picture</span>
-            <div class="desc">Upload profile picture</div>
+            <span class="method put">PUT</span>
+            <span class="path">/api/users/profile</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Update user profile</div>
           </div>
           
+          <!-- EVENTS -->
           <div class="endpoint-card">
             <span class="method get">GET</span>
             <span class="path">/api/events</span>
@@ -177,9 +183,51 @@ app.get("/", (req, res) => {
           </div>
           
           <div class="endpoint-card">
+            <span class="method get">GET</span>
+            <span class="path">/api/events/:id</span>
+            <div class="desc">Get single event details</div>
+          </div>
+          
+          <div class="endpoint-card">
+            <span class="method put">PUT</span>
+            <span class="path">/api/events/:id</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Update event (Admin only)</div>
+          </div>
+          
+          <div class="endpoint-card">
+            <span class="method delete">DELETE</span>
+            <span class="path">/api/events/:id</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Delete event (Admin only)</div>
+          </div>
+          
+          <div class="endpoint-card">
             <span class="method post">POST</span>
             <span class="path">/api/events/:id/register</span>
             <div class="desc">Register for an event</div>
+          </div>
+          
+          <!-- DAY 3 ADMIN ENDPOINTS -->
+          <div class="endpoint-card">
+            <span class="method get">GET</span>
+            <span class="path">/api/events/admin/dashboard</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Admin dashboard with statistics</div>
+          </div>
+          
+          <div class="endpoint-card">
+            <span class="method get">GET</span>
+            <span class="path">/api/events/:id/registrations</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Get event registrations (Admin)</div>
+          </div>
+          
+          <div class="endpoint-card">
+            <span class="method get">GET</span>
+            <span class="path">/api/events/:id/registrations/export</span>
+            <span class="day3-badge">Day 3</span>
+            <div class="desc">Export registrations as CSV</div>
           </div>
         </div>
         
@@ -245,11 +293,17 @@ app.use((req, res) => {
       "POST   /api/auth/register",
       "POST   /api/auth/login",
       "POST   /api/auth/verify-otp",
-      "GET    /api/profile",
-      "POST   /api/profile/picture",
-      "GET    /api/events",          // ✅ ADDED
-      "POST   /api/events",          // ✅ ADDED
-      "POST   /api/events/:id/register"  // ✅ ADDED
+      "GET    /api/users/profile",
+      "PUT    /api/users/profile",
+      "GET    /api/events",
+      "GET    /api/events/:id",
+      "POST   /api/events",
+      "PUT    /api/events/:id",
+      "DELETE /api/events/:id",
+      "POST   /api/events/:id/register",
+      "GET    /api/events/admin/dashboard",
+      "GET    /api/events/:id/registrations",
+      "GET    /api/events/:id/registrations/export"
     ]
   });
 });
@@ -258,28 +312,36 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`\n${'='.repeat(60)}`);
-  console.log("🚀 SERVER STARTED SUCCESSFULLY");
+  console.log("🚀 SERVER STARTED SUCCESSFULLY (Day 3 Ready)");
   console.log(`${'='.repeat(60)}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📊 DB Config: config/db.js`);
   console.log(`📁 Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(`${'='.repeat(60)}`);
   
-  console.log("\n📡 API ENDPOINTS:");
+  console.log("\n📡 API ENDPOINTS (Day 3 in purple):");
   console.log(`${'-'.repeat(50)}`);
   console.log("🔐 AUTHENTICATION:");
   console.log(`   POST   /api/auth/register    - Register user`);
   console.log(`   POST   /api/auth/login       - Login user`);
   console.log(`   POST   /api/auth/verify-otp  - Verify OTP`);
   
-  console.log("\n👤 PROFILE:");
-  console.log(`   GET    /api/profile          - Get profile`);
-  console.log(`   POST   /api/profile/picture  - Upload picture`);
+  console.log("\n👤 PROFILE (USERS):");
+  console.log(`   GET    /api/users/profile    - Get profile`);
+  console.log(`   PUT    /api/users/profile    - Update profile \x1b[35m[Day 3]\x1b[0m`);
   
-  console.log("\n🎪 EVENTS:");  // ✅ UPDATED
+  console.log("\n🎪 EVENTS:");
   console.log(`   GET    /api/events           - Get all events`);
+  console.log(`   GET    /api/events/:id       - Get single event`);
   console.log(`   POST   /api/events           - Create event (Admin)`);
+  console.log(`   PUT    /api/events/:id       - Update event (Admin) \x1b[35m[Day 3]\x1b[0m`);
+  console.log(`   DELETE /api/events/:id       - Delete event (Admin) \x1b[35m[Day 3]\x1b[0m`);
   console.log(`   POST   /api/events/:id/register - Register for event`);
+  
+  console.log("\n🛠️ ADMIN DASHBOARD:");
+  console.log(`   GET    /api/events/admin/dashboard - Admin stats \x1b[35m[Day 3]\x1b[0m`);
+  console.log(`   GET    /api/events/:id/registrations - View registrations \x1b[35m[Day 3]\x1b[0m`);
+  console.log(`   GET    /api/events/:id/registrations/export - Export CSV \x1b[35m[Day 3]\x1b[0m`);
   
   console.log("\n📊 SYSTEM:");
   console.log(`   GET    /                     - Home page`);
