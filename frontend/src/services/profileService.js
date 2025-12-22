@@ -1,9 +1,10 @@
+// frontend/src/services/profileService.js
 const API_URL = "http://localhost:5000/api";
 
 export const getProfile = async () => {
   try {
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_URL}/profile`, {
+    const response = await fetch(`${API_URL}/users/profile`, { // ✅ CHANGED /profile to /users/profile
       headers: {
         "Authorization": token ? `Bearer ${token}` : "",
       },
@@ -18,7 +19,7 @@ export const getProfile = async () => {
 export const updateProfile = async (profileData) => {
   try {
     const token = localStorage.getItem("token");
-    const response = await fetch(`${API_URL}/profile`, {
+    const response = await fetch(`${API_URL}/users/profile`, { // ✅ CHANGED /profile to /users/profile
       method: "PUT",
       headers: {
         "Authorization": token ? `Bearer ${token}` : "",
