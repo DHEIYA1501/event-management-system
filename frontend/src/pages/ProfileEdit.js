@@ -1,116 +1,316 @@
-// src/pages/ProfileEdit.js
+// frontend/src/pages/ProfileEdit.js
 import React, { useState, useEffect } from 'react';
-import { adminService } from '../services/adminService';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { getProfile, updateProfile } from '../services/profileService';
 
 const ProfileEdit = () => {
-  const [user, setUser] = useState(null);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', bio: '' });
+  const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    bio: '',
+    phone: '',
+    studentId: ''
+  });
+  
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [fetching, setFetching] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
+  // 1. LOAD CURRENT PROFILE ON PAGE LOAD
   useEffect(() => {
-    // Get current user data
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    setUser(userData);
-    setFormData({
-      name: userData.name || '',
-      email: userData.email || '',
-      phone: userData.phone || '',
-      bio: userData.bio || ''
-    });
+    const fetchCurrentProfile = async () => {
+      try {
+        const response = await getProfile();
+        console.log('PROFILE DATA RECEIVED:', response);
+        
+        if (response && !response.error) {
+          setFormData({
+            name: response.name || '',
+            email: response.email || '',
+            bio: response.bio || '',
+            phone: response.phone || '',
+            studentId: response.studentId || ''
+          });
+        } else {
+          setError(response?.error || 'Failed to load profile');
+        }
+      } catch (err) {
+        setError('Error loading profile data');
+        console.error('Profile fetch error:', err);
+      } finally {
+        setFetching(false);
+      }
+    };
+    
+    fetchCurrentProfile();
   }, []);
 
+  // 2. HANDLE INPUT CHANGES
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (error) setError('');
+  };
+
+  // 3. HANDLE FORM SUBMIT
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage('');
     
+    // Basic validation
+    if (!formData.name.trim()) {
+      setError('Name is required');
+      return;
+    }
+    if (!formData.email.trim() || !formData.email.includes('@')) {
+      setError('Valid email is required');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
-      const response = await adminService.updateProfile(formData);
-      localStorage.setItem('user', JSON.stringify(response.data));
-      setMessage('✅ Profile updated successfully!');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      setMessage('❌ Failed to update profile');
+      console.log('SUBMITTING PROFILE DATA:', formData);
+      const response = await updateProfile(formData);
+      console.log('UPDATE RESPONSE:', response);
+      
+      if (response && !response.error) {
+        // Update global auth state
+        updateUser(response);
+        
+        setSuccess('✅ Profile updated successfully!');
+        
+        // Redirect to profile page after 2 seconds
+        setTimeout(() => {
+          navigate('/profile');
+        }, 2000);
+      } else {
+        setError(response?.error || 'Update failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Network error. Please check your connection.');
+      console.error('Update error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  // 4. SHOW LOADING WHILE FETCHING
+  if (fetching) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px' }}>
+        <h3>Loading your profile...</h3>
+        <div style={{ marginTop: '20px' }}>⏳</div>
+      </div>
+    );
+  }
+
+  // 5. RENDER FORM
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-      <h1 style={{ color: '#DBA858' }}>Edit Profile</h1>
+    <div style={{ 
+      maxWidth: '600px', 
+      margin: '40px auto', 
+      padding: '30px',
+      background: '#fff',
+      borderRadius: '10px',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+    }}>
+      <h1 style={{ marginBottom: '30px', color: '#333' }}>✏️ Edit Profile</h1>
       
-      {message && (
-        <div style={{
-          padding: '1rem',
-          background: message.includes('✅') ? 'rgba(40, 167, 69, 0.2)' : 'rgba(220, 53, 69, 0.2)',
-          color: message.includes('✅') ? '#d4edda' : '#f8d7da',
-          border: `1px solid ${message.includes('✅') ? '#28a745' : '#dc3545'}`,
-          borderRadius: '4px',
-          marginBottom: '1rem'
+      {/* ERROR MESSAGE */}
+      {error && (
+        <div style={{ 
+          color: '#721c24', 
+          background: '#f8d7da', 
+          padding: '12px',
+          marginBottom: '20px',
+          borderRadius: '5px',
+          border: '1px solid #f5c6cb'
         }}>
-          {message}
+          ⚠️ {error}
         </div>
       )}
       
+      {/* SUCCESS MESSAGE */}
+      {success && (
+        <div style={{ 
+          color: '#155724', 
+          background: '#d4edda', 
+          padding: '12px',
+          marginBottom: '20px',
+          borderRadius: '5px',
+          border: '1px solid #c3e6cb'
+        }}>
+          ✅ {success}
+          <div style={{ fontSize: '14px', marginTop: '5px' }}>
+            Redirecting to profile page...
+          </div>
+        </div>
+      )}
+      
+      {/* PROFILE FORM */}
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', color: '#DBA858' }}>Name</label>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+            Full Name *
+          </label>
           <input
             type="text"
+            name="name"
             value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            style={{ width: '100%', padding: '0.8rem', background: '#031B28', color: '#DBA858', border: '1px solid #083248', borderRadius: '4px' }}
+            onChange={handleChange}
+            required
+            disabled={loading}
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              boxSizing: 'border-box'
+            }}
+            placeholder="Enter your name"
           />
         </div>
         
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', color: '#DBA858' }}>Email</label>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+            Email Address *
+          </label>
           <input
             type="email"
+            name="email"
             value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            style={{ width: '100%', padding: '0.8rem', background: '#031B28', color: '#DBA858', border: '1px solid #083248', borderRadius: '4px' }}
+            onChange={handleChange}
+            required
+            disabled={loading}
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              boxSizing: 'border-box'
+            }}
+            placeholder="Enter your email"
           />
         </div>
         
-        <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', color: '#DBA858' }}>Phone</label>
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+            disabled={loading}
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              boxSizing: 'border-box'
+            }}
+            placeholder="Enter your phone number"
+          />
+        </div>
+        
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+            Student ID
+          </label>
           <input
             type="text"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-            style={{ width: '100%', padding: '0.8rem', background: '#031B28', color: '#DBA858', border: '1px solid #083248', borderRadius: '4px' }}
+            name="studentId"
+            value={formData.studentId}
+            onChange={handleChange}
+            disabled={loading}
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              boxSizing: 'border-box'
+            }}
+            placeholder="Enter your student ID"
           />
         </div>
         
-        <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', color: '#DBA858' }}>Bio</label>
+        <div style={{ marginBottom: '25px' }}>
+          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+            Bio
+          </label>
           <textarea
+            name="bio"
             value={formData.bio}
-            onChange={(e) => setFormData({...formData, bio: e.target.value})}
+            onChange={handleChange}
             rows="4"
-            style={{ width: '100%', padding: '0.8rem', background: '#031B28', color: '#DBA858', border: '1px solid #083248', borderRadius: '4px' }}
+            disabled={loading}
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              fontSize: '16px',
+              border: '1px solid #ddd',
+              borderRadius: '5px',
+              boxSizing: 'border-box',
+              resize: 'vertical'
+            }}
+            placeholder="Tell us about yourself, interests, etc."
           />
         </div>
         
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            padding: '0.8rem 1.5rem',
-            background: 'linear-gradient(135deg, #E89C31 0%, #DBA858 100%)',
-            color: '#031B28',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            width: '100%'
-          }}
-        >
-          {loading ? 'Saving...' : 'Save Changes'}
-        </button>
+        {/* BUTTONS */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '15px',
+          justifyContent: 'flex-end',
+          borderTop: '1px solid #eee',
+          paddingTop: '25px'
+        }}>
+          <button 
+            type="button" 
+            onClick={() => navigate('/profile')}
+            disabled={loading}
+            style={{ 
+              padding: '12px 25px', 
+              background: '#6c757d', 
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              opacity: loading ? 0.6 : 1
+            }}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            disabled={loading}
+            style={{ 
+              padding: '12px 25px', 
+              background: loading ? '#6c757d' : '#007bff', 
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: '16px',
+              fontWeight: '500'
+            }}
+          >
+            {loading ? '⏳ Saving...' : '💾 Save Changes'}
+          </button>
+        </div>
       </form>
     </div>
   );
