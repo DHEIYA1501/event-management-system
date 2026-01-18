@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getProfile, updateProfile } from '../services/profileService';
 
 const ProfileEdit = () => {
-  const { user, updateUser } = useAuth();
+  const { updateUser } = useAuth();
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({

@@ -1,6 +1,6 @@
-// controllers/eventController.js
 const Event = require('../models/event');
 const User = require('../models/user');
+const Registration = require('../models/registration'); // ✅ NEW
 
 // 1. Create event (club admin only)
 exports.createEvent = async (req, res) => {
@@ -102,14 +102,17 @@ exports.deleteEvent = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to delete this event' });
         }
 
+        // Also delete all registrations for this event
+        await Registration.deleteMany({ event: req.params.id });
+
         await event.deleteOne();
-        res.status(200).json({ message: 'Event deleted successfully' });
+        res.status(200).json({ message: 'Event and its registrations deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
 
-// 6. Register for event (students only) - ✅ ADDED
+// 6. Register for event (students only) - ✅ UPDATED with Registration model
 exports.registerForEvent = async (req, res) => {
     try {
         const event = await Event.findById(req.params.id);
@@ -123,30 +126,36 @@ exports.registerForEvent = async (req, res) => {
             return res.status(403).json({ message: 'Only students can register for events' });
         }
 
-        // Check if already registered
-        if (event.registeredUsers && event.registeredUsers.includes(req.user.id)) {
+        // Check if already registered using Registration model
+        const existingRegistration = await Registration.findOne({
+            event: req.params.id,
+            user: req.user.id
+        });
+
+        if (existingRegistration) {
             return res.status(400).json({ message: 'Already registered for this event' });
         }
 
-        // Check capacity
-        const registeredCount = event.registeredUsers ? event.registeredUsers.length : 0;
+        // Check capacity - count registrations
+        const registeredCount = await Registration.countDocuments({ event: req.params.id });
         if (registeredCount >= event.capacity) {
             return res.status(400).json({ message: 'Event is full' });
         }
 
-        // Initialize registeredUsers array if not exists
-        if (!event.registeredUsers) {
-            event.registeredUsers = [];
-        }
+        // Create registration
+        const registration = new Registration({
+            event: req.params.id,
+            user: req.user.id,
+            status: 'pending' // Default status
+        });
 
-        // Register user
-        event.registeredUsers.push(req.user.id);
-        await event.save();
+        await registration.save();
 
         res.status(200).json({ 
             message: 'Registered for event successfully', 
             eventId: event._id,
-            registeredCount: event.registeredUsers.length
+            registrationId: registration._id,
+            status: registration.status
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -155,7 +164,7 @@ exports.registerForEvent = async (req, res) => {
 
 // ========== DAY 3: ADMIN FUNCTIONS ==========
 
-// 7. Get admin dashboard events with stats
+// 7. Get admin dashboard events with stats - ✅ UPDATED
 exports.getAdminEvents = async (req, res) => {
   try {
     // Get events created by this club admin
@@ -171,12 +180,19 @@ exports.getAdminEvents = async (req, res) => {
       pastEvents: 0
     };
     
-    // Add registration count to each event
-    const eventsWithStats = events.map(event => {
+    // Get registration counts for each event
+    const eventsWithStats = await Promise.all(events.map(async (event) => {
       const eventObj = event.toObject();
-      const registeredCount = event.registeredUsers ? event.registeredUsers.length : 0;
+      
+      // Count registrations for this event
+      const registeredCount = await Registration.countDocuments({ event: event._id });
+      const confirmedCount = await Registration.countDocuments({ 
+        event: event._id, 
+        status: 'confirmed' 
+      });
       
       eventObj.registrationCount = registeredCount;
+      eventObj.confirmedCount = confirmedCount;
       eventObj.availableSpots = event.capacity - registeredCount;
       
       // Update overall stats
@@ -192,7 +208,7 @@ exports.getAdminEvents = async (req, res) => {
       }
       
       return eventObj;
-    });
+    }));
     
     // Calculate average registrations
     stats.averageRegistrations = stats.totalEvents > 0 
@@ -214,12 +230,10 @@ exports.getAdminEvents = async (req, res) => {
   }
 };
 
-// 8. Get event registrations (admin only)
+// 8. Get event registrations (admin only) - ✅ UPDATED
 exports.getEventRegistrations = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id)
-      .populate('clubId', 'name email')
-      .populate('registeredUsers', 'name email studentId avatar');
+    const event = await Event.findById(req.params.id);
     
     if (!event) {
       return res.status(404).json({ 
@@ -229,24 +243,42 @@ exports.getEventRegistrations = async (req, res) => {
     }
     
     // Check if user is the event's club admin
-    if (event.clubId._id.toString() !== req.user.id) {
+    if (event.clubId.toString() !== req.user.id) {
       return res.status(403).json({ 
         success: false, 
         message: "Not authorized to view registrations for this event" 
       });
     }
     
-    const registeredUsers = event.registeredUsers || [];
+    // Get registrations with user details
+    const registrations = await Registration.find({ event: req.params.id })
+      .populate('user', 'name email studentId avatar department')
+      .sort({ registeredAt: -1 });
     
     // Registration statistics
     const registrationStats = {
-      total: registeredUsers.length,
+      total: registrations.length,
+      pending: registrations.filter(r => r.status === 'pending').length,
+      confirmed: registrations.filter(r => r.status === 'confirmed').length,
+      rejected: registrations.filter(r => r.status === 'rejected').length,
       capacity: event.capacity,
-      availableSpots: event.capacity - registeredUsers.length,
+      availableSpots: event.capacity - registrations.length,
       fillPercentage: event.capacity > 0 
-        ? Math.round((registeredUsers.length / event.capacity) * 100) 
+        ? Math.round((registrations.length / event.capacity) * 100) 
         : 0
     };
+    
+    // Format registration data for frontend
+    const formattedRegistrations = registrations.map(reg => ({
+      _id: reg._id,
+      name: reg.user?.name || 'Unknown',
+      email: reg.user?.email || 'No email',
+      collegeId: reg.user?.studentId || 'N/A',
+      department: reg.user?.department || 'Not specified',
+      status: reg.status,
+      registeredAt: reg.registeredAt,
+      userId: reg.user?._id
+    }));
     
     res.status(200).json({
       success: true,
@@ -258,8 +290,8 @@ exports.getEventRegistrations = async (req, res) => {
         venue: event.venue
       },
       stats: registrationStats,
-      count: registeredUsers.length,
-      data: registeredUsers
+      count: formattedRegistrations.length,
+      data: formattedRegistrations
     });
   } catch (error) {
     console.error(error);
@@ -270,11 +302,10 @@ exports.getEventRegistrations = async (req, res) => {
   }
 };
 
-// 9. Export registrations as CSV
+// 9. Export registrations as CSV - ✅ UPDATED
 exports.exportRegistrationsCSV = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id)
-      .populate('registeredUsers', 'name email studentId');
+    const event = await Event.findById(req.params.id);
     
     if (!event) {
       return res.status(404).json({ 
@@ -291,24 +322,28 @@ exports.exportRegistrationsCSV = async (req, res) => {
       });
     }
     
-    const registeredUsers = event.registeredUsers || [];
+    // Get registrations
+    const registrations = await Registration.find({ event: req.params.id })
+      .populate('user', 'name email studentId');
     
-    if (registeredUsers.length === 0) {
+    if (registrations.length === 0) {
       return res.status(400).json({ 
         success: false, 
         message: "No registrations to export" 
       });
     }
     
-    // Create CSV content
-    let csvContent = "Sr.No,Name,Email,Student ID\n";
+    // Create CSV content with status
+    let csvContent = "Sr.No,Name,Email,Student ID,Status,Registered Date\n";
     
-    registeredUsers.forEach((user, index) => {
+    registrations.forEach((reg, index) => {
       const row = [
         index + 1,
-        `"${user.name || "N/A"}"`,
-        `"${user.email || "N/A"}"`,
-        `"${user.studentId || "N/A"}"`
+        `"${reg.user?.name || "N/A"}"`,
+        `"${reg.user?.email || "N/A"}"`,
+        `"${reg.user?.studentId || "N/A"}"`,
+        `"${reg.status}"`,
+        `"${new Date(reg.registeredAt).toLocaleDateString()}"`
       ].join(",");
       
       csvContent += row + "\n";
@@ -319,8 +354,19 @@ exports.exportRegistrationsCSV = async (req, res) => {
     csvContent += `Event Title,"${event.title}"\n`;
     csvContent += `Date,"${new Date(event.date).toLocaleDateString()}"\n`;
     csvContent += `Venue,"${event.venue}"\n`;
-    csvContent += `Total Registrations,${registeredUsers.length}\n`;
+    csvContent += `Total Registrations,${registrations.length}\n`;
     csvContent += `Capacity,${event.capacity}\n`;
+    
+    // Status breakdown
+    const statusCounts = {};
+    registrations.forEach(reg => {
+      statusCounts[reg.status] = (statusCounts[reg.status] || 0) + 1;
+    });
+    
+    csvContent += `\nStatus Breakdown\n`;
+    Object.entries(statusCounts).forEach(([status, count]) => {
+      csvContent += `${status.charAt(0).toUpperCase() + status.slice(1)},${count}\n`;
+    });
     
     // Set headers for file download
     const filename = `${event.title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-registrations.csv`;
@@ -334,6 +380,67 @@ exports.exportRegistrationsCSV = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: "Server error exporting registrations" 
+    });
+  }
+};
+
+// 10. Update registration status (admin only) - ✅ NEW COMPLETE FUNCTION
+exports.updateRegistrationStatus = async (req, res) => {
+  try {
+    const { id: eventId, registrationId } = req.params; // Changed here
+    const { status } = req.body;
+    
+    console.log('Updating registration status:', { eventId, registrationId, status });
+    // Validate status
+    const validStatuses = ['pending', 'confirmed', 'rejected'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid status. Must be: pending, confirmed, or rejected' 
+      });
+    }
+
+    // Find the registration
+    const registration = await Registration.findOne({
+      _id: registrationId,
+      event: eventId
+    }).populate('event');
+
+    if (!registration) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Registration not found' 
+      });
+    }
+
+    // Check if user is the event's club admin
+    if (registration.event.clubId.toString() !== req.user.id) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Not authorized to update this registration' 
+      });
+    }
+
+    // Update status
+    registration.status = status;
+    await registration.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Registration status updated to ${status}`,
+      data: {
+        _id: registration._id,
+        status: registration.status,
+        user: registration.user,
+        event: registration.event._id
+      }
+    });
+
+  } catch (error) {
+    console.error('Update registration error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error updating registration status' 
     });
   }
 };

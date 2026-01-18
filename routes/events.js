@@ -1,4 +1,3 @@
-// routes/events.js
 const express = require("express");
 const router = express.Router();
 const eventController = require("../controllers/eventController");
@@ -51,5 +50,10 @@ router.get("/:id/registrations", protect, admin, eventController.getEventRegistr
 // @route   GET /api/events/:id/registrations/export
 // @access  Private (Club Admin only)
 router.get("/:id/registrations/export", protect, admin, eventController.exportRegistrationsCSV);
+
+// @desc    Update registration status (admin only)
+// @route   PUT /api/events/:id/registrations/:registrationId
+// @access  Private (Club Admin only)
+router.put("/:id/registrations/:registrationId", protect, admin, eventController.updateRegistrationStatus);
 
 module.exports = router;

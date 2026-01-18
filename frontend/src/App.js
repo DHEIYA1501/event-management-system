@@ -219,7 +219,7 @@ function App() {
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/edit" element={<ProfileEdit />} />
             <Route path="/events/:id" element={<EventDetails />} />
-            <Route path="/club-admin" element={<ClubAdmin />} />
+          <Route path="/club-admin" element={<ClubAdmin />} />
           </Routes>
         </main>
         

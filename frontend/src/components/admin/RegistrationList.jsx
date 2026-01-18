@@ -1,47 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
 
-const RegistrationList = ({ eventId, registrations = [] }) => {
+const RegistrationList = ({ eventId }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [data, setData] = useState(registrations);
-  
-  // Mock data for UI testing if no data provided
-  const mockData = [
-    { 
-      id: 1, 
-      name: "Rahul Sharma", 
-      email: "rahul.sharma@college.edu", 
-      collegeId: "2023CS101", 
-      registeredAt: "2024-01-15T10:30:00Z",
-      department: "Computer Science",
-      status: "confirmed"
-    },
-    { 
-      id: 2, 
-      name: "Priya Patel", 
-      email: "priya.patel@college.edu", 
-      collegeId: "2023EC105", 
-      registeredAt: "2024-01-14T14:20:00Z",
-      department: "Electronics",
-      status: "pending"
-    },
-    { 
-      id: 3, 
-      name: "Amit Kumar", 
-      email: "amit.kumar@college.edu", 
-      collegeId: "2023ME110", 
-      registeredAt: "2024-01-13T09:15:00Z",
-      department: "Mechanical",
-      status: "confirmed"
-    },
-  ];
-  
-  // Use provided data or mock data
-  const displayData = data.length > 0 ? data : mockData;
-  
-  const handleExport = async () => {
+  const [data, setData] = useState([]);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  // Fetch real registrations on component mount
+  useEffect(() => {
+    if (eventId) {
+      fetchRegistrations();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  const fetchRegistrations = async () => {
     try {
       setIsLoading(true);
+      const response = await adminService.getEventRegistrations(eventId);
+      console.log('Registrations API response:', response.data);
+      
+      // Process the response data
+      let registrations = [];
+      
+      if (Array.isArray(response.data)) {
+        registrations = response.data;
+      } else if (response.data && Array.isArray(response.data.registrations)) {
+        registrations = response.data.registrations;
+      } else if (response.data && Array.isArray(response.data.data)) {
+        registrations = response.data.data;
+      }
+      
+      // Transform data to match expected structure
+      const processedData = registrations.map(reg => ({
+        _id: reg._id || reg.id,
+        name: reg.user?.name || reg.name || 'Unknown',
+        email: reg.user?.email || reg.email || 'No email',
+        collegeId: reg.user?.collegeId || reg.collegeId || 'N/A',
+        department: reg.user?.department || reg.department || 'Not specified',
+        status: reg.status || 'pending',
+        registeredAt: reg.registeredAt || reg.createdAt || new Date().toISOString(),
+        userId: reg.user?._id || reg.userId
+      }));
+      
+      setData(processedData);
+    } catch (error) {
+      console.error('Failed to fetch registrations:', error);
+      alert('Failed to load registrations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      setExportLoading(true);
       const response = await adminService.exportRegistrationsCSV(eventId);
       
       // Create download link for CSV file
@@ -58,24 +71,43 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
       console.error('Export failed:', error);
       alert('Failed to export CSV. Please try again.');
     } finally {
-      setIsLoading(false);
+      setExportLoading(false);
     }
   };
   
   const handleStatusUpdate = async (registrationId, newStatus) => {
     try {
+      console.log('Updating status:', { eventId, registrationId, newStatus });
+      
       await adminService.updateRegistrationStatus(eventId, registrationId, newStatus);
-      // Update local state
+      
+      // Update local state - use _id for matching
       setData(prev => prev.map(item => 
-        item.id === registrationId ? { ...item, status: newStatus } : item
+        (item._id === registrationId || item.id === registrationId) 
+          ? { ...item, status: newStatus } 
+          : item
       ));
+      
       alert(`Status updated to ${newStatus}`);
     } catch (error) {
       console.error('Status update failed:', error);
-      alert('Failed to update status');
+      console.error('Error details:', error.response?.data);
+      alert(`Failed to update status: ${error.response?.data?.message || error.message}`);
     }
   };
-  
+
+  if (isLoading) {
+    return (
+      <div style={{ 
+        padding: '2rem', 
+        textAlign: 'center',
+        color: '#DBA858'
+      }}>
+        Loading registrations...
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -83,18 +115,13 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
           <h2 className="text-2xl font-bold text-gray-800">Event Registrations</h2>
           <p className="text-gray-600 mt-1">
             Event ID: <span className="font-semibold">{eventId}</span> | 
-            Total: <span className="font-semibold">{displayData.length}</span> students registered
+            Total: <span className="font-semibold">{data.length}</span> students registered
           </p>
         </div>
         
         <div className="flex gap-3">
           <button
-            onClick={() => {
-              // Refresh registrations
-              adminService.getEventRegistrations(eventId)
-                .then(response => setData(response.data))
-                .catch(error => console.error('Failed to fetch:', error));
-            }}
+            onClick={fetchRegistrations}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg flex items-center"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,13 +132,13 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
           
           <button
             onClick={handleExport}
-            disabled={isLoading || displayData.length === 0}
+            disabled={exportLoading || data.length === 0}
             className="px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg flex items-center transition-colors"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            {isLoading ? 'Exporting...' : 'Export CSV'}
+            {exportLoading ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
       </div>
@@ -144,8 +171,8 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {displayData.map((student) => (
-              <tr key={student.id} className="hover:bg-gray-50">
+            {data.map((student, index) => (
+              <tr key={student._id || index} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="font-medium text-gray-900">{student.name}</div>
                 </td>
@@ -183,16 +210,25 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleStatusUpdate(student.id, 'confirmed')}
-                      className="text-xs px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded"
+                      onClick={() => handleStatusUpdate(student._id || student.id, 'confirmed')}
+                      className="text-xs px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded disabled:opacity-50"
+                      disabled={student.status === 'confirmed'}
                     >
                       Confirm
                     </button>
                     <button
-                      onClick={() => handleStatusUpdate(student.id, 'rejected')}
-                      className="text-xs px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded"
+                      onClick={() => handleStatusUpdate(student._id || student.id, 'rejected')}
+                      className="text-xs px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded disabled:opacity-50"
+                      disabled={student.status === 'rejected'}
                     >
                       Reject
+                    </button>
+                    <button
+                      onClick={() => handleStatusUpdate(student._id || student.id, 'pending')}
+                      className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 hover:bg-yellow-200 rounded disabled:opacity-50"
+                      disabled={student.status === 'pending'}
+                    >
+                      Pending
                     </button>
                   </div>
                 </td>
@@ -201,7 +237,7 @@ const RegistrationList = ({ eventId, registrations = [] }) => {
           </tbody>
         </table>
         
-        {displayData.length === 0 && (
+        {data.length === 0 && !isLoading && (
           <div className="text-center py-12 text-gray-500">
             <div className="text-4xl mb-2">📭</div>
             <p className="text-lg">No registrations yet</p>
