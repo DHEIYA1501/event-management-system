@@ -16,7 +16,7 @@ const EventSchema = new mongoose.Schema({
   },
   time: {
     type: String,
-    required: [true, 'Event time is required']
+    default: '14:30'
   },
   venue: {
     type: String,
@@ -25,7 +25,8 @@ const EventSchema = new mongoose.Schema({
   capacity: {
     type: Number,
     required: [true, 'Event capacity is required'],
-    min: [1, 'Capacity must be at least 1']
+    min: [1, 'Capacity must be at least 1'],
+    default: 50
   },
   clubId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -34,23 +35,32 @@ const EventSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'completed'],
-    default: 'pending'
+    enum: ['draft', 'published', 'cancelled'],
+    default: 'published'  // ✅ FIX: Changed from 'pending' to 'published'
+  },
+  category: {
+    type: String,
+    enum: ['Academic', 'Cultural', 'Sports', 'Technical', 'Workshop', 'Seminar'],
+    default: 'Technical'
   },
   posterUrl: {
     type: String,
     default: ''
   },
-  // ✅ ADD THIS LINE - Registered users array
-  registeredUsers: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    default: []
-  }],
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+});
+
+// Update timestamp on save
+EventSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
 module.exports = mongoose.model('Event', EventSchema);

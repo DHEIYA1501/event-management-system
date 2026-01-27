@@ -33,17 +33,79 @@ exports.createEvent = async (req, res) => {
     }
 };
 
-// 2. List events (all users)
+// 2. List events (all users) - ✅ UPDATED: Show published events only
 exports.getAllEvents = async (req, res) => {
-    try {
-        const events = await Event.find()
-            .populate('clubId', 'name email')
-            .sort({ date: 1 }); // Sort by date ascending
-        
-        res.status(200).json({ events });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
+  try {
+    console.log('📊 getAllEvents called - fetching published events');
+    
+    const events = await Event.find({ status: 'published' })  // ✅ Only show published events
+      .populate('clubId', 'name email')
+      .sort({ date: 1 }); // Sort by date ascending
+    
+    console.log(`✅ getAllEvents: Found ${events.length} published events`);
+    
+    res.status(200).json({ 
+      success: true,
+      count: events.length,
+      events 
+    });
+  } catch (error) {
+    console.error('❌ getAllEvents error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error fetching events', 
+      error: error.message 
+    });
+  }
+};
+
+// 1. Create event (club admin only) - ✅ UPDATED: Set status to published
+exports.createEvent = async (req, res) => {
+  try {
+    const { title, description, date, time, venue, capacity, category } = req.body;
+    
+    console.log('🎪 createEvent called by user:', req.user.id);
+    console.log('Event data:', { title, date, venue, capacity });
+    
+    // Check if user is club admin
+    const user = await User.findById(req.user.id);
+    if (!user || user.role !== 'club_admin') {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Only club admins can create events' 
+      });
     }
+
+    const event = new Event({
+      title,
+      description,
+      date,
+      time: time || '14:30',
+      venue,
+      capacity: capacity || 50,
+      category: category || 'Technical',
+      clubId: req.user.id,
+      status: 'published'  // ✅ Automatically publish when created
+    });
+
+    await event.save();
+    
+    console.log(`✅ Event created: "${event.title}" by club admin ${req.user.id}`);
+    console.log(`✅ Event ID: ${event._id}, Status: ${event.status}`);
+    
+    res.status(201).json({ 
+      success: true,
+      message: 'Event created and published successfully', 
+      event 
+    });
+  } catch (error) {
+    console.error('❌ createEvent error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error creating event', 
+      error: error.message 
+    });
+  }
 };
 
 // 3. Get event details

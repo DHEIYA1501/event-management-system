@@ -25,18 +25,44 @@ function Events() {
   }, []);
 
   const loadEvents = async () => {
-    setLoading(true);
+  setLoading(true);
+  try {
+    console.log('🔄 Loading events from API...');
     const data = await getEvents();
     
-    // Handle the response structure: { events: [...] }
-    if (data && data.events) {
-      setEvents(data.events);  // Extract array from events property
+    console.log('📡 Events API response:', data);
+    
+    // Handle different response structures
+    if (data && data.success !== false) {
+      if (data.events && Array.isArray(data.events)) {
+        // Structure: { success: true, events: [...] }
+        console.log(`✅ Found ${data.events.length} events in data.events`);
+        setEvents(data.events);
+      } else if (Array.isArray(data)) {
+        // Structure: events array directly
+        console.log(`✅ Found ${data.length} events (direct array)`);
+        setEvents(data);
+      } else if (data.data && Array.isArray(data.data)) {
+        // Structure: { data: [...] }
+        console.log(`✅ Found ${data.data.length} events in data.data`);
+        setEvents(data.data);
+      } else {
+        console.log('⚠️ Unexpected response format:', data);
+        setEvents([]);
+      }
     } else {
+      console.log('❌ API returned error:', data?.message || 'Unknown error');
       setEvents([]);
     }
     
+  } catch (error) {
+    console.error('❌ Error loading events:', error);
+    alert('Failed to load events. Please try again.');
+    setEvents([]);
+  } finally {
     setLoading(false);
-  };
+  }
+};
 
   // Filter events based on search and filters
   const filteredEvents = events.filter(event => {
