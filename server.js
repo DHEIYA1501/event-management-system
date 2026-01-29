@@ -28,6 +28,19 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", profileRoutes); // ✅ CHANGED: /api/users instead of /api/profile
 app.use("/api/events", eventRoutes);
 
+// ========== ERROR HANDLING MIDDLEWARE ==========
+app.use((err, req, res, next) => {
+  console.error('🔥 SERVER ERROR:', err.message);
+  console.error('Stack:', err.stack);
+  
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal server error'
+  });
+});
+
+// ========== CONTINUE WITH REST OF YOUR SERVER.JS ==========
+
 // Home route with enhanced UI
 app.get("/", (req, res) => {
   const mongoose = require("mongoose");

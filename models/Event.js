@@ -3,16 +3,16 @@ const mongoose = require('mongoose');
 const EventSchema = new mongoose.Schema({
   title: {
     type: String,
-    required: [true, 'Event title is required'],
+    required: true,
     trim: true
   },
   description: {
     type: String,
-    required: [true, 'Event description is required']
+    required: true
   },
   date: {
     type: Date,
-    required: [true, 'Event date is required']
+    required: true
   },
   time: {
     type: String,
@@ -20,23 +20,23 @@ const EventSchema = new mongoose.Schema({
   },
   venue: {
     type: String,
-    required: [true, 'Event venue is required']
+    required: true
   },
   capacity: {
     type: Number,
-    required: [true, 'Event capacity is required'],
-    min: [1, 'Capacity must be at least 1'],
+    required: true,
+    min: 1,
     default: 50
   },
   clubId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Club ID is required']
+    required: true
   },
   status: {
     type: String,
     enum: ['draft', 'published', 'cancelled'],
-    default: 'published'  // ✅ FIX: Changed from 'pending' to 'published'
+    default: 'published'
   },
   category: {
     type: String,
@@ -57,10 +57,9 @@ const EventSchema = new mongoose.Schema({
   }
 });
 
-// Update timestamp on save
-EventSchema.pre('save', function(next) {
+/* ✅ CORRECT pre-save hook (NO next misuse) */
+EventSchema.pre('save', function () {
   this.updatedAt = Date.now();
-  next();
 });
 
 module.exports = mongoose.model('Event', EventSchema);

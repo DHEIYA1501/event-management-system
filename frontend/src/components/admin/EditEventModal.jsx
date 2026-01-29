@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
-import { createEvent } from '../../services/events';
+import { createEvent } from '../../services/events'; // Make sure this exists and works
 
 const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -8,10 +8,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
     title: '',
     description: '',
     date: '',
-    time: '',
-    venue: '',
+    time: '14:30', // ✅ Default time
+    venue: '',     // ✅ Correct field name
     capacity: 50,
-    category: 'technical'
+    category: 'Academic' // ✅ Match your categories
   });
   
   const [errors, setErrors] = useState({});
@@ -24,10 +24,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
         title: event.title || '',
         description: event.description || '',
         date: eventDate.toISOString().split('T')[0] || '',
-        time: event.time || '10:00',
-        venue: event.venue || '',
+        time: event.time || '14:30',
+        venue: event.venue || '', // ✅ Correct field
         capacity: event.capacity || 50,
-        category: event.category || 'technical'
+        category: event.category || 'Academic'
       });
     } else {
       // Reset for new event
@@ -35,10 +35,10 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
         title: '',
         description: '',
         date: '',
-        time: '10:00',
-        venue: '',
+        time: '14:30',
+        venue: '', // ✅ Correct field
         capacity: 50,
-        category: 'technical'
+        category: 'Academic'
       });
     }
     setErrors({});
@@ -51,7 +51,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
     
     if (!formData.title.trim()) newErrors.title = 'Title is required';
     if (!formData.date) newErrors.date = 'Date is required';
-    if (!formData.venue.trim()) newErrors.venue = 'Venue is required';
+    if (!formData.venue.trim()) newErrors.venue = 'Venue is required'; // ✅ Correct field
     if (formData.capacity < 1) newErrors.capacity = 'Capacity must be at least 1';
     
     // Check if date is in future
@@ -86,33 +86,44 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
     
     setIsLoading(true);
     try {
-      // Combine date and time
-      const eventDateTime = `${formData.date}T${formData.time}:00`;
+      // ✅ FIXED: Create proper date-time for backend
+      const eventDateTime = new Date(formData.date);
+      const [hours, minutes] = formData.time.split(':');
+      eventDateTime.setHours(hours || 14, minutes || 30);
       
       const eventData = {
         title: formData.title,
         description: formData.description,
-        date: eventDateTime,
-        venue: formData.venue,
+        date: eventDateTime.toISOString(), // Full ISO date
+        time: formData.time,
+        venue: formData.venue, // ✅ Correct field
         capacity: formData.capacity,
         category: formData.category
       };
       
+      console.log('Sending event data:', eventData);
+      
       let response;
-      if (event && event.id) {
+      if (event && event._id) {
         // Update existing event
-        response = await adminService.updateEvent(event.id, eventData);
+        response = await adminService.updateEvent(event._id, eventData);
       } else {
         // Create new event
         response = await createEvent(eventData);
       }
       
-      alert(event ? 'Event updated successfully!' : 'Event created successfully!');
-      onSuccess(response.data);
+      console.log('Save response:', response);
+      
+      alert(event ? '✅ Event updated successfully!' : '✅ Event created successfully!');
+      
+      // Call onSuccess with the saved event
+      const savedEvent = response.data || response;
+      onSuccess(savedEvent);
       onClose();
     } catch (error) {
-      console.error('Save failed:', error);
-      alert(`Failed to save event: ${error.response?.data?.message || error.message}`);
+      console.error('❌ Save failed:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      alert(`❌ Failed to save event: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -214,7 +225,7 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
                   </label>
                   <input
                     type="text"
-                    name="venue"
+                    name="venue" // ✅ Correct field name
                     value={formData.venue}
                     onChange={handleChange}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -257,11 +268,11 @@ const EditEventModal = ({ isOpen, onClose, event, onSuccess }) => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   disabled={isLoading}
                 >
-                  <option value="technical">Technical</option>
-                  <option value="cultural">Cultural</option>
-                  <option value="sports">Sports</option>
-                  <option value="workshop">Workshop</option>
-                  <option value="seminar">Seminar</option>
+                  <option value="Academic">Academic</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Technical">Technical</option>
+                  <option value="Workshop">Workshop</option>
                 </select>
               </div>
             </div>

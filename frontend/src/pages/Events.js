@@ -13,8 +13,7 @@ function Events() {
     description: '',
     date: '',
     time: '14:30',
-    location: '',
-    venue: '',
+    venue: '',      // ✅ CHANGED: Removed "location", kept only "venue"
     capacity: 50,
     category: 'Academic'
   });
@@ -25,44 +24,41 @@ function Events() {
   }, []);
 
   const loadEvents = async () => {
-  setLoading(true);
-  try {
-    console.log('🔄 Loading events from API...');
-    const data = await getEvents();
-    
-    console.log('📡 Events API response:', data);
-    
-    // Handle different response structures
-    if (data && data.success !== false) {
-      if (data.events && Array.isArray(data.events)) {
-        // Structure: { success: true, events: [...] }
-        console.log(`✅ Found ${data.events.length} events in data.events`);
-        setEvents(data.events);
-      } else if (Array.isArray(data)) {
-        // Structure: events array directly
-        console.log(`✅ Found ${data.length} events (direct array)`);
-        setEvents(data);
-      } else if (data.data && Array.isArray(data.data)) {
-        // Structure: { data: [...] }
-        console.log(`✅ Found ${data.data.length} events in data.data`);
-        setEvents(data.data);
+    setLoading(true);
+    try {
+      console.log('🔄 Loading events from API...');
+      const data = await getEvents();
+      
+      console.log('📡 Events API response:', data);
+      
+      // Handle different response structures
+      if (data && data.success !== false) {
+        if (data.events && Array.isArray(data.events)) {
+          console.log(`✅ Found ${data.events.length} events in data.events`);
+          setEvents(data.events);
+        } else if (Array.isArray(data)) {
+          console.log(`✅ Found ${data.length} events (direct array)`);
+          setEvents(data);
+        } else if (data.data && Array.isArray(data.data)) {
+          console.log(`✅ Found ${data.data.length} events in data.data`);
+          setEvents(data.data);
+        } else {
+          console.log('⚠️ Unexpected response format:', data);
+          setEvents([]);
+        }
       } else {
-        console.log('⚠️ Unexpected response format:', data);
+        console.log('❌ API returned error:', data?.message || 'Unknown error');
         setEvents([]);
       }
-    } else {
-      console.log('❌ API returned error:', data?.message || 'Unknown error');
+      
+    } catch (error) {
+      console.error('❌ Error loading events:', error);
+      alert('Failed to load events. Please try again.');
       setEvents([]);
+    } finally {
+      setLoading(false);
     }
-    
-  } catch (error) {
-    console.error('❌ Error loading events:', error);
-    alert('Failed to load events. Please try again.');
-    setEvents([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // Filter events based on search and filters
   const filteredEvents = events.filter(event => {
@@ -101,24 +97,49 @@ function Events() {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    const result = await createEvent(newEvent);
     
-    if (result._id || result.event?._id) {
-      alert('Event created successfully!');
-      setShowForm(false);
-      setNewEvent({ 
-        title: '', 
-        description: '', 
-        date: '', 
-        time: '14:30',
-        location: '', 
-        venue: '',
-        capacity: 50,
-        category: 'Academic' 
-      });
-      loadEvents();
-    } else {
-      alert('Failed to create event: ' + (result.error || 'Unknown error'));
+    try {
+      // ✅ FIXED: Format date properly for backend
+      const eventDate = new Date(newEvent.date);
+      const formattedTime = newEvent.time.includes(':') ? newEvent.time : '14:30';
+      
+      // ✅ FIXED: Prepare data matching backend expectations
+      const eventData = {
+        title: newEvent.title,
+        description: newEvent.description,
+        date: eventDate.toISOString(), // Full ISO date string
+        time: formattedTime,
+        venue: newEvent.venue,          // ✅ Using venue field
+        capacity: parseInt(newEvent.capacity) || 50,
+        category: newEvent.category || 'Academic'
+      };
+      
+      console.log('📤 Sending event data to backend:', eventData);
+      
+      const result = await createEvent(eventData);
+      console.log('📥 Create event response:', result);
+      
+      if (result.success && result.event) {
+        alert('✅ Event created successfully!');
+        setShowForm(false);
+        // ✅ FIXED: Reset form with correct fields
+        setNewEvent({ 
+          title: '', 
+          description: '', 
+          date: '', 
+          time: '14:30',
+          venue: '',      // ✅ Only venue field
+          capacity: 50,
+          category: 'Academic' 
+        });
+        loadEvents(); // Refresh events list
+      } else {
+        alert('❌ Failed to create event: ' + (result.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('❌ Error creating event:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+      alert('❌ Error creating event: ' + errorMessage);
     }
   };
 
@@ -256,26 +277,7 @@ function Events() {
                 />
               </div>
               
-              <div>
-                <input
-                  type="text"
-                  name="location"
-                  placeholder="Location *"
-                  value={newEvent.location}
-                  onChange={handleInputChange}
-                  required
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    fontSize: '16px',
-                    background: '#031B28',
-                    border: '1px solid #083248',
-                    color: '#DBA858',
-                    borderRadius: '6px'
-                  }}
-                />
-              </div>
-              
+              {/* ✅ FIXED: Removed "location" field, kept only "venue" */}
               <div>
                 <input
                   type="text"
@@ -656,7 +658,7 @@ function Events() {
                 marginBottom: '10px'
               }}>
                 <span>📅 {formatDate(event.date)}</span>
-                <span>📍 {event.venue || event.location || 'TBA'}</span>
+                <span>📍 {event.venue || 'TBA'}</span> {/* ✅ Updated */}
               </div>
               
               <div style={{ 
